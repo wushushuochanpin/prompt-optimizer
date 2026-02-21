@@ -1,0 +1,26 @@
+# 开发热加载部署：Web (Vite dev) + MCP (dev)，全部在 Docker 中运行
+# 使用：cp env.local.example .env.local 并填写后，执行 docker compose -f docker-compose.dev-hot.yml up -d
+# 前端：http://<host>:18181  MCP：http://<host>:3000/mcp
+
+services:
+  app:
+    image: node:20-slim
+    container_name: prompt-optimizer-dev
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "18181:18181"   # Vite dev server
+      - "13000:3000"    # MCP server（宿主机 13000 避免与其它服务冲突）
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=development
+      - MCP_HTTP_PORT=3000
+    command: >
+      sh -c "(corepack enable 2>/dev/null && corepack prepare pnpm@10.6.1 --activate) || npm install -g pnpm@10.6.1 --force
+      && pnpm install --frozen-lockfile
+      && NODE_ENV=production pnpm build:core && NODE_ENV=production pnpm build:ui && pnpm mcp:build
+      && (pnpm mcp:dev &)
+      && exec pnpm run dev:parallel"
+    restart: unless-stopped
